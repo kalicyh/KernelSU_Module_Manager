@@ -32,6 +32,8 @@ enum Commands {
         /// 模块名称
         module: String,
     },
+    /// 初始化模块
+    Init,
     /// 移除模块
     Remove {
         /// 模块名称
@@ -52,6 +54,7 @@ fn main() {
 
     match cli.command {
         Commands::Build => commands::build::execute(),
+        Commands::Init => commands::init::execute(),
         Commands::Install { module } => commands::install::execute(module),
         Commands::List => commands::list::execute(),
         Commands::Remove { module } => commands::remove::execute(module),
