@@ -81,13 +81,99 @@ fn get_git_info() -> (String, Option<String>) {
     (update_json, username)
 }
 
+fn create_system_directory(base_path: &Path) {
+    let system_path = base_path.join("system");
+    if system_path.exists() {
+        println!("{}", format!("  ℹ️ system 目录已存在，跳过创建").dimmed());
+    } else {
+        fs::create_dir_all(&system_path).expect("无法创建 system 目录");
+        println!("{} 创建 system 目录: {}", "📁".green(), system_path.display());
+    }
+}
+
+fn create_module_prop(base_path: &Path, id: &str, name: &str, version: &str, version_code: i32, author: &str, description: &str, update_json: &str) {
+    let module_prop_path = base_path.join("module.prop");
+    if module_prop_path.exists() {
+        println!("{}", format!("  ℹ️ module.prop 文件已存在，跳过创建").dimmed());
+    } else {
+        let module_prop_content = format!(
+            "id={}\nname={}\nversion={}\nversionCode={}\nauthor={}\ndescription={}\nupdateJson={}\n",
+            id, name, version, version_code, author, description, update_json
+        );
+        fs::write(&module_prop_path, module_prop_content).expect("无法写入 module.prop");
+        println!("{} 创建 module.prop 文件: {}", "📄".green(), module_prop_path.display());
+    }
+}
+
+fn create_script_files(base_path: &Path) {
+    let scripts = [
+        ("post-fs-data.sh", "#!/system/bin/sh\n# 在文件系统挂载后执行\n"),
+        ("service.sh", "#!/system/bin/sh\n# 服务脚本\n"),
+        ("customize.sh", "#!/system/bin/sh\n# 自定义脚本\n"),
+    ];
+
+    for (filename, content) in &scripts {
+        let file_path = base_path.join(filename);
+        if file_path.exists() {
+            println!("{}", format!("  ℹ️ {} 文件已存在，跳过创建", filename).dimmed());
+        } else {
+            fs::write(&file_path, content).expect(&format!("无法写入 {}", filename));
+            println!("{} 创建脚本文件: {}", "📜".green(), file_path.display());
+        }
+    }
+}
+
+fn create_action_script(base_path: &Path) {
+    let action_path = base_path.join("action.sh");
+    if action_path.exists() {
+        println!("{}", format!("  ℹ️ action.sh 文件已存在，跳过创建").dimmed());
+    } else {
+        fs::write(&action_path, "#!/system/bin/sh\n# 执行按钮脚本\n").expect("无法写入 action.sh");
+        println!("{} 创建 action.sh 文件: {}", "🔘".green(), action_path.display());
+    }
+}
+
+fn create_webui(base_path: &Path) {
+    let webroot_path = base_path.join("webroot");
+    if webroot_path.exists() {
+        println!("{}", format!("  ℹ️ webroot 目录已存在，跳过创建").dimmed());
+    } else {
+        fs::create_dir_all(&webroot_path).expect("无法创建 webroot 目录");
+        println!("{} 创建 webroot 目录: {}", "🌐".green(), webroot_path.display());
+    }
+
+    let index_html_path = webroot_path.join("index.html");
+    if index_html_path.exists() {
+        println!("{}", format!("  ℹ️ index.html 文件已存在，跳过创建").dimmed());
+    } else {
+        let index_html = r#"<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KernelSU Module WebUI</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+        h1 { color: #333; }
+    </style>
+</head>
+<body>
+    <h1>欢迎使用 KernelSU 模块</h1>
+    <p>这是一个简单的 WebUI 示例。</p>
+</body>
+</html>"#;
+        fs::write(&index_html_path, index_html).expect("无法写入 index.html");
+        println!("{} 创建 index.html 文件: {}", "🌐".green(), index_html_path.display());
+    }
+}
+
 pub fn execute() {
     println!("{} {}", "🚀".green(), "初始化 KernelSU 模块...".cyan());
 
     // 输入创建地址
     let path: String = Input::new()
-        .with_prompt("请输入创建地址 (默认当前目录: .)")
-        .default(".".to_string())
+        .with_prompt("请输入创建地址 (默认当前目录: ksmm)")
+        .default("ksmm".to_string())
         .interact_text()
         .unwrap();
 
@@ -128,10 +214,6 @@ pub fn execute() {
         }
     }
 
-    // 创建 system 目录
-    let system_path = base_path.join("system");
-    fs::create_dir_all(&system_path).expect("无法创建 system 目录");
-
     // 使用项目名称作为id和name
     let id = project_name.clone();
     let name = project_name;
@@ -157,57 +239,45 @@ pub fn execute() {
     // 自动生成描述
     let description = format!("一个用ksmm创建的{}模块", name);
 
+    // 创建 system 目录
+    create_system_directory(base_path);
+
     // 创建 module.prop
-    let module_prop_content = format!(
-        "id={}\nname={}\nversion={}\nversionCode={}\nauthor={}\ndescription={}\nupdateJson={}\n",
-        id, name, version, version_code_int, author, description, update_json
-    );
-    fs::write(base_path.join("module.prop"), module_prop_content).expect("无法写入 module.prop");
+    create_module_prop(base_path, &id, &name, &version, version_code_int, &author, &description, &update_json);
 
     // 创建脚本文件
-    fs::write(base_path.join("post-fs-data.sh"), "#!/system/bin/sh\n# 在文件系统挂载后执行\n").expect("无法写入 post-fs-data.sh");
-    fs::write(base_path.join("service.sh"), "#!/system/bin/sh\n# 服务脚本\n").expect("无法写入 service.sh");
-    fs::write(base_path.join("customize.sh"), "#!/system/bin/sh\n# 自定义脚本\n").expect("无法写入 customize.sh");
+    create_script_files(base_path);
 
-    // 询问是否需要执行按钮
-    let need_action = Confirm::new()
-        .with_prompt("是否需要执行按钮?")
-        .default(true)
-        .interact()
-        .unwrap();
+    // 检查是否需要执行按钮
+    let action_path = base_path.join("action.sh");
+    if action_path.exists() {
+        println!("{}", format!("  ℹ️ action.sh 文件已存在，跳过执行按钮配置").dimmed());
+    } else {
+        let need_action = Confirm::new()
+            .with_prompt("是否需要执行按钮?")
+            .default(true)
+            .interact()
+            .unwrap();
 
-    if need_action {
-        fs::write(base_path.join("action.sh"), "#!/system/bin/sh\n# 执行按钮脚本\n").expect("无法写入 action.sh");
+        if need_action {
+            create_action_script(base_path);
+        }
     }
 
-    // 询问是否需要 webui
-    let need_webui = Confirm::new()
-        .with_prompt("是否需要 WebUI?")
-        .default(true)
-        .interact()
-        .unwrap();
+    // 检查是否需要 webui
+    let webroot_path = base_path.join("webroot");
+    if webroot_path.exists() {
+        println!("{}", format!("  ℹ️ webroot 目录已存在，跳过WebUI配置").dimmed());
+    } else {
+        let need_webui = Confirm::new()
+            .with_prompt("是否需要 WebUI?")
+            .default(true)
+            .interact()
+            .unwrap();
 
-    if need_webui {
-        let webroot_path = base_path.join("webroot");
-        fs::create_dir_all(&webroot_path).expect("无法创建 webroot 目录");
-
-        let index_html = r#"<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KernelSU Module WebUI</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-        h1 { color: #333; }
-    </style>
-</head>
-<body>
-    <h1>欢迎使用 KernelSU 模块</h1>
-    <p>这是一个简单的 WebUI 示例。</p>
-</body>
-</html>"#;
-        fs::write(webroot_path.join("index.html"), index_html).expect("无法写入 index.html");
+        if need_webui {
+            create_webui(base_path);
+        }
     }
 
     println!("{} {}", "✅".green(), "模块初始化完成!".cyan());
