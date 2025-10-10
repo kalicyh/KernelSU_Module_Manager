@@ -3,7 +3,7 @@ use owo_colors::OwoColorize;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use chrono::{Datelike, Utc};
+use chrono::{Datelike, Timelike, Utc};
 use regex::Regex;
 
 fn get_git_info() -> (String, Option<String>, Option<String>, Option<String>, Option<String>) {
@@ -95,6 +95,16 @@ fn create_system_directory(base_path: &Path) {
     } else {
         fs::create_dir_all(&system_path).expect("无法创建 system 目录");
         println!("{} 创建 system 目录", "[+]".green());
+
+        // 创建 system/etc 目录
+        let etc_path = system_path.join("etc");
+        fs::create_dir_all(&etc_path).expect("无法创建 system/etc 目录");
+
+        // 创建示例配置文件
+        let example_conf_path = etc_path.join("example.conf");
+        let example_conf_content = "# 这是一个示例配置文件\n# 将此文件放置在system目录中，它会被挂载到 /system/etc/example.conf\n";
+        fs::write(&example_conf_path, example_conf_content).expect("无法写入 example.conf");
+        println!("{} 创建 system/etc/example.conf", "[+]".green());
     }
 }
 
@@ -113,10 +123,60 @@ fn create_module_prop(base_path: &Path, id: &str, name: &str, version: &str, ver
 }
 
 fn create_script_files(base_path: &Path) {
+    let customize_content = r#"#!/system/bin/sh
+# KernelSU 模块自定义安装脚本
+
+# 检查设备信息
+ui_print "- 设备架构: $ARCH"
+ui_print "- Android API: $API"
+ui_print "- KernelSU 版本: $KSU_VER"
+
+# 根据设备架构进行不同的处理
+case $ARCH in
+    arm64)
+        ui_print "- 64位ARM设备"
+        ;;
+    arm)
+        ui_print "- 32位ARM设备"
+        ;;
+    x64)
+        ui_print "- x86_64设备"
+        ;;
+    x86)
+        ui_print "- x86设备"
+        ;;
+esac
+
+# 根据Android版本进行处理
+# 示例shellcheck 自动修复 $API -> "$API"
+if [ $API -lt 29 ]; then
+    ui_print "- Android 10以下版本"
+else
+    ui_print "- Android 10及以上版本"
+fi
+
+# 设置权限（如果需要）
+# set_perm_recursive $MODPATH/system/bin 0 0 0755 0755
+# set_perm $MODPATH/system/etc/example.conf 0 0 0644
+
+# 示例：删除系统文件（取消注释以使用）
+# REMOVE="
+# /system/app/SomeSystemApp
+# /system/etc/some_config_file
+# "
+
+# 示例：替换系统目录（取消注释以使用）
+# REPLACE="
+# /system/app/SomeSystemApp
+# "
+
+ui_print "- 模块安装完成"
+"#;
+
     let scripts = [
         ("post-fs-data.sh", "#!/system/bin/sh\n# 在文件系统挂载后执行\n"),
         ("service.sh", "#!/system/bin/sh\n# 服务脚本\n"),
-        ("customize.sh", "#!/system/bin/sh\n# 自定义脚本\n"),
+        ("customize.sh", customize_content),
     ];
 
     for (filename, content) in &scripts {
@@ -127,6 +187,17 @@ fn create_script_files(base_path: &Path) {
             fs::write(&file_path, content).expect(&format!("无法写入 {}", filename));
             println!("{} 创建 {}", "[+]".green(), filename);
         }
+    }
+}
+
+fn create_changelog(base_path: &Path) {
+    let changelog_path = base_path.join("CHANGELOG.md");
+    if changelog_path.exists() {
+        println!("{}", format!("  [!] CHANGELOG.md 文件已存在，跳过创建").dimmed());
+    } else {
+        let changelog_content = "# 更新日志\n## v0.1.0\n";
+        fs::write(&changelog_path, changelog_content).expect("无法写入 CHANGELOG.md");
+        println!("{} 创建 CHANGELOG.md", "[+]".green());
     }
 }
 
@@ -266,7 +337,7 @@ pub fn execute() {
     // 默认版本信息
     let version = "0.1.0".to_string();
     let now = Utc::now();
-    let version_code_int = (now.year() * 10000 + now.month() as i32 * 100 + now.day() as i32) as i32;
+    let version_code_int = (now.year() * 1000000 + now.month() as i32 * 10000 + now.day() as i32 * 100 + now.hour() as i32) as i32;
 
     // 自动生成描述
     let description = format!("一个用ksmm创建的{}模块", name);
@@ -279,6 +350,9 @@ pub fn execute() {
 
     // 创建脚本文件
     create_script_files(base_path);
+
+    // 创建 CHANGELOG.md
+    create_changelog(base_path);
 
     // 检查是否需要执行按钮
     let action_path = base_path.join("action.sh");
