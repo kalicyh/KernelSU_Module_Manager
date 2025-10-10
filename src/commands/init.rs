@@ -6,49 +6,52 @@ use std::process::Command;
 use chrono::{Datelike, Utc};
 use regex::Regex;
 
-fn get_git_info() -> (String, Option<String>) {
-    // 首先尝试获取git远程仓库URL
-    println!("{} 尝试获取git仓库信息...", "🔍".blue());
+fn get_git_info() -> (String, Option<String>, Option<String>, Option<String>, Option<String>) {
+    // 获取分支信息
+    let branch_output = Command::new("git")
+        .args(&["branch", "--show-current"])
+        .output();
+
+    let branch = if let Ok(output) = branch_output {
+        if output.status.success() {
+            Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // 获取远程仓库URL
     let remote_output = Command::new("git")
         .args(&["remote", "get-url", "origin"])
         .output();
 
+    let mut remote_url = None;
     let mut update_json = String::new();
     let mut username = None;
 
     if let Ok(output) = remote_output {
         if output.status.success() {
             let url = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            println!("{} 找到git远程仓库: {}", "✅".green(), url);
-            
+            remote_url = Some(url.clone());
+
             // 解析GitHub URL
-            // 支持的格式：
-            // https://github.com/username/repo.git
-            // git@github.com:username/repo.git
-            // https://github.com/username/repo
             let github_regex = Regex::new(r"github\.com[\/:]([^\/]+)\/([^\/\.]+)").unwrap();
-            
+
             if let Some(captures) = github_regex.captures(&url) {
                 if let (Some(user), Some(repo)) = (captures.get(1), captures.get(2)) {
                     let user = user.as_str();
                     let repo = repo.as_str().trim_end_matches(".git");
-                    println!("{} 解析出用户名: {}, 仓库: {}", "✅".green(), user, repo);
                     update_json = format!("https://github.com/{}/{}/releases/latest/download/update.json", user, repo);
                     username = Some(user.to_string());
                 }
-            } else {
-                println!("{} 无法从URL解析GitHub信息", "⚠️".yellow());
             }
-        } else {
-            println!("{} git remote get-url origin 命令失败", "❌".red());
         }
-    } else {
-        println!("{} 无法执行git remote get-url origin 命令", "❌".red());
     }
 
     // 如果无法从远程URL获取，尝试获取git用户名
     if username.is_none() {
-        println!("{} 尝试获取git用户名...", "🔍".blue());
         let user_output = Command::new("git")
             .args(&["config", "user.name"])
             .output();
@@ -57,51 +60,55 @@ fn get_git_info() -> (String, Option<String>) {
             if output.status.success() {
                 let user = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if !user.is_empty() {
-                    println!("{} 找到git用户名: {}", "✅".green(), user);
                     update_json = format!("https://github.com/{}/ksmm/releases/latest/download/update.json", user);
                     username = Some(user);
-                } else {
-                    println!("{} git用户名为空", "⚠️".yellow());
                 }
-            } else {
-                println!("{} git config user.name 命令失败", "❌".red());
             }
-        } else {
-            println!("{} 无法执行git config user.name 命令", "❌".red());
         }
     }
 
+    // 获取工作目录状态
+    let status_output = Command::new("git")
+        .args(&["status", "--porcelain"])
+        .output();
+
+    let is_clean = if let Ok(output) = status_output {
+        output.stdout.is_empty()
+    } else {
+        false
+    };
+
+    let status = if is_clean { "工作目录清洁" } else { "工作目录有变更" };
+
     // 如果都获取不到，使用默认的ksmm
     if update_json.is_empty() {
-        println!("{} 使用默认用户名: ksmm", "ℹ️".blue());
-        println!("{} 建议在module.prop文件中手动修改updateJson和作者信息", "💡".cyan());
         update_json = "https://github.com/ksmm/ksmm/releases/latest/download/update.json".to_string();
     }
 
-    (update_json, username)
+    (update_json, username, branch, remote_url, Some(status.to_string()))
 }
 
 fn create_system_directory(base_path: &Path) {
     let system_path = base_path.join("system");
     if system_path.exists() {
-        println!("{}", format!("  ℹ️ system 目录已存在，跳过创建").dimmed());
+        println!("{}", format!("  [!] system 目录已存在，跳过创建").dimmed());
     } else {
         fs::create_dir_all(&system_path).expect("无法创建 system 目录");
-        println!("{} 创建 system 目录: {}", "📁".green(), system_path.display());
+        println!("{} 创建 system 目录", "[+]".green());
     }
 }
 
 fn create_module_prop(base_path: &Path, id: &str, name: &str, version: &str, version_code: i32, author: &str, description: &str, update_json: &str) {
     let module_prop_path = base_path.join("module.prop");
     if module_prop_path.exists() {
-        println!("{}", format!("  ℹ️ module.prop 文件已存在，跳过创建").dimmed());
+        println!("{}", format!("  [!] module.prop 文件已存在，跳过创建").dimmed());
     } else {
         let module_prop_content = format!(
             "id={}\nname={}\nversion={}\nversionCode={}\nauthor={}\ndescription={}\nupdateJson={}\n",
             id, name, version, version_code, author, description, update_json
         );
         fs::write(&module_prop_path, module_prop_content).expect("无法写入 module.prop");
-        println!("{} 创建 module.prop 文件: {}", "📄".green(), module_prop_path.display());
+        println!("{} 创建 module.prop", "[+]".green());
     }
 }
 
@@ -115,10 +122,10 @@ fn create_script_files(base_path: &Path) {
     for (filename, content) in &scripts {
         let file_path = base_path.join(filename);
         if file_path.exists() {
-            println!("{}", format!("  ℹ️ {} 文件已存在，跳过创建", filename).dimmed());
+            println!("{}", format!("  [!] {} 文件已存在，跳过创建", filename).dimmed());
         } else {
             fs::write(&file_path, content).expect(&format!("无法写入 {}", filename));
-            println!("{} 创建脚本文件: {}", "📜".green(), file_path.display());
+            println!("{} 创建 {}", "[+]".green(), filename);
         }
     }
 }
@@ -126,25 +133,25 @@ fn create_script_files(base_path: &Path) {
 fn create_action_script(base_path: &Path) {
     let action_path = base_path.join("action.sh");
     if action_path.exists() {
-        println!("{}", format!("  ℹ️ action.sh 文件已存在，跳过创建").dimmed());
+        println!("{}", format!("  [!] action.sh 文件已存在，跳过创建").dimmed());
     } else {
         fs::write(&action_path, "#!/system/bin/sh\n# 执行按钮脚本\n").expect("无法写入 action.sh");
-        println!("{} 创建 action.sh 文件: {}", "🔘".green(), action_path.display());
+        println!("{} 创建 action.sh", "[+]".green());
     }
 }
 
 fn create_webui(base_path: &Path) {
     let webroot_path = base_path.join("webroot");
     if webroot_path.exists() {
-        println!("{}", format!("  ℹ️ webroot 目录已存在，跳过创建").dimmed());
+        println!("{}", format!("  [!] webroot 目录已存在，跳过创建").dimmed());
     } else {
         fs::create_dir_all(&webroot_path).expect("无法创建 webroot 目录");
-        println!("{} 创建 webroot 目录: {}", "🌐".green(), webroot_path.display());
+        println!("{} 创建 webroot 目录", "[+]".green());
     }
 
     let index_html_path = webroot_path.join("index.html");
     if index_html_path.exists() {
-        println!("{}", format!("  ℹ️ index.html 文件已存在，跳过创建").dimmed());
+        println!("{}", format!("  [!] index.html 文件已存在，跳过创建").dimmed());
     } else {
         let index_html = r#"<!DOCTYPE html>
 <html lang="zh-CN">
@@ -163,12 +170,12 @@ fn create_webui(base_path: &Path) {
 </body>
 </html>"#;
         fs::write(&index_html_path, index_html).expect("无法写入 index.html");
-        println!("{} 创建 index.html 文件: {}", "🌐".green(), index_html_path.display());
+        println!("{} 创建 index.html", "[+]".green());
     }
 }
 
 pub fn execute() {
-    println!("{} {}", "🚀".green(), "初始化 KernelSU 模块...".cyan());
+    println!("{} {}", "🚀", "初始化 KernelSU 模块...".cyan());
 
     // 输入创建地址
     let path: String = Input::new()
@@ -201,7 +208,7 @@ pub fn execute() {
     // 验证项目名称/id格式
     let id_regex = Regex::new(r"^[a-zA-Z][a-zA-Z0-9._-]+$").unwrap();
     if !id_regex.is_match(&project_name) {
-        println!("{} 当前目录名称 '{}' 不符合模块ID格式要求。", "⚠️".yellow(), project_name);
+        println!("{} 当前目录名称 '{}' 不符合模块ID格式要求。", "⚠️", project_name);
         project_name = Input::new()
             .with_prompt("请输入项目名称 (必须以字母开头，只能包含字母、数字、点、下划线和连字符)")
             .interact_text()
@@ -209,7 +216,7 @@ pub fn execute() {
         
         // 再次验证用户输入
         if !id_regex.is_match(&project_name) {
-            println!("{} 模块ID格式无效。必须以字母开头，只能包含字母、数字、点、下划线和连字符。", "❌".red());
+            println!("{} 模块ID格式无效。必须以字母开头，只能包含字母、数字、点、下划线和连字符。", "❌");
             return;
         }
     }
@@ -219,12 +226,37 @@ pub fn execute() {
     let name = project_name;
 
     // 获取git仓库信息
-    let (update_json, git_username) = get_git_info();
+    let (update_json, git_username, branch, remote_url, status) = get_git_info();
+
+    // 输出git信息
+    if remote_url.is_some() || branch.is_some() {
+        println!("{} 检测到 Git 仓库", "🔍");
+        if let Some(branch_name) = &branch {
+            println!("  {}: {}", "分支".blue(), branch_name.green());
+        }
+        if let Some(url) = &remote_url {
+            println!("  {}: {}", "远程仓库".blue(), url.green());
+        }
+        if let Some(user) = &git_username {
+            println!("  {}: {}", "用户名".blue(), user.green());
+        }
+        if let Some(url) = &remote_url {
+            let github_regex = Regex::new(r"github\.com[\/:]([^\/]+)\/([^\/\.]+)").unwrap();
+            if let Some(captures) = github_regex.captures(url) {
+                if let Some(repo) = captures.get(2) {
+                    let repo_name = repo.as_str().trim_end_matches(".git");
+                    println!("  {}: {}", "仓库".blue(), repo_name.green());
+                }
+            }
+        }
+        if let Some(work_status) = &status {
+            println!("  {}: {}", "状态".blue(), work_status.green());
+        }
+        println!();
+    }
 
     // 确定作者
     let author = if let Some(username) = git_username {
-        println!("{} 使用git用户名作为作者: {}", "✅".green(), username);
-        println!("{} 如果作者信息不符合要求，请在module.prop文件中手动修改", "ℹ️".blue());
         username
     } else {
         println!("{} 无法获取git用户信息，使用默认作者: ksmm", "ℹ️".blue());
@@ -251,7 +283,7 @@ pub fn execute() {
     // 检查是否需要执行按钮
     let action_path = base_path.join("action.sh");
     if action_path.exists() {
-        println!("{}", format!("  ℹ️ action.sh 文件已存在，跳过执行按钮配置").dimmed());
+        println!("{}", format!("  [!] action.sh 文件已存在，跳过执行按钮配置").dimmed());
     } else {
         let need_action = Confirm::new()
             .with_prompt("是否需要执行按钮?")
@@ -267,7 +299,7 @@ pub fn execute() {
     // 检查是否需要 webui
     let webroot_path = base_path.join("webroot");
     if webroot_path.exists() {
-        println!("{}", format!("  ℹ️ webroot 目录已存在，跳过WebUI配置").dimmed());
+        println!("{}", format!("  [!] webroot 目录已存在，跳过WebUI配置").dimmed());
     } else {
         let need_webui = Confirm::new()
             .with_prompt("是否需要 WebUI?")
@@ -280,5 +312,16 @@ pub fn execute() {
         }
     }
 
-    println!("{} {}", "✅".green(), "模块初始化完成!".cyan());
+    println!("{} {}", "✅", "模块初始化完成!".cyan());
+    println!();
+    println!("{} 项目路径: {}", "📁", base_path.canonicalize().unwrap_or(base_path.to_path_buf()).display().green());
+    println!("{} 项目ID: {}", "🔧", id.green());
+    println!();
+    println!("{} 下一步:", "📋");
+    println!("  1. 编辑 {} 目录，添加你要修改的系统文件", "system/".green());
+    println!("  2. 根据需要修改 {} 安装脚本", "customize.sh".green());
+    println!("  3. 运行 {} 构建模块", "'ksmm build'".green());
+    println!("  4. 运行 {} 安装到设备测试", "'ksmm install <模块文件>'".green());
+    println!();
+    println!("{} 项目初始化成功!", "🎉");
 }
