@@ -41,6 +41,8 @@ enum Commands {
     },
     /// 构建模块
     Build,
+    /// 签名设置
+    Sign,
     /// 显示版本信息
     Version,
 }
@@ -58,6 +60,7 @@ fn main() {
         Commands::Install { module } => commands::install::execute(module),
         Commands::List => commands::list::execute(),
         Commands::Remove { module } => commands::remove::execute(module),
+        Commands::Sign => commands::sign::execute(),
         Commands::Version => commands::version::execute(),
     }
 }
