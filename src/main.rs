@@ -41,8 +41,16 @@ enum Commands {
     },
     /// 构建模块
     Build,
-    /// 签名设置
-    Sign,
+    /// 签名文件
+    Sign {
+        /// 要签名的文件
+        file: String,
+    },
+    /// 密钥管理
+    Key {
+        #[command(subcommand)]
+        key_command: commands::sign::KeyCommands,
+    },
     /// 显示版本信息
     Version,
 }
@@ -60,7 +68,8 @@ fn main() {
         Commands::Install { module } => commands::install::execute(module),
         Commands::List => commands::list::execute(),
         Commands::Remove { module } => commands::remove::execute(module),
-        Commands::Sign => commands::sign::execute(),
+        Commands::Sign { file } => commands::sign::execute_sign_file(file),
+        Commands::Key { key_command } => commands::sign::execute_key_command(key_command),
         Commands::Version => commands::version::execute(),
     }
 }
