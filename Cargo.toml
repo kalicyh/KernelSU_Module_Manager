@@ -2,6 +2,13 @@
 name = "ksmm"
 version = "0.1.0"
 edition = "2024"
+authors = ["kalicyh <kalicyh@qq.com>"]
+license = "MIT"
+description = "KernelSU Module Manager CLI"
+repository = "https://github.com/kalicyh/KernelSU_Module_Manager"
+readme = "README.md"
+categories = ["command-line-utilities"]
+keywords = ["kernelsu", "module", "manager"]
 
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
