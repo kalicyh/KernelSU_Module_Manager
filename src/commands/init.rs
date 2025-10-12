@@ -324,6 +324,73 @@ CHANGELOG.md
     }
 }
 
+fn create_github_workflows(base_path: &Path) {
+    let workflows_path = base_path.join(".github/workflows");
+    
+    if workflows_path.exists() {
+        println!("{}", format!("  [!] .github/workflows 目录已存在，跳过创建").dimmed());
+        return;
+    }
+
+    match fs::create_dir_all(&workflows_path) {
+        Ok(_) => {
+            println!("{} 创建 .github/workflows 目录", "[+]".green());
+        }
+        Err(e) => {
+            println!("{} 创建 .github/workflows 目录失败: {}", "[-]".red(), e);
+            return;
+        }
+    }
+
+    let ci_yml_path = workflows_path.join("ci.yml");
+    let ci_yml_content = "name: CI\n\non:\n  push:\n    tags:\n      - 'v*'\n\njobs:\n  build:\n    runs-on: macos-latest\n\n    steps:\n    - name: Checkout code\n      uses: actions/checkout@v4\n\n    - name: Test\n      run: echo 'Hello World'\n";
+
+    fs::write(&ci_yml_path, ci_yml_content).expect("无法写入 .github/workflows/ci.yml");
+    println!("{} 创建 .github/workflows/ci.yml", "[+]".green());
+}
+
+fn update_gitignore(base_path: &Path) {
+    // 查找 .gitignore 文件，先在项目目录，然后在父目录
+    let gitignore_in_project = base_path.join(".gitignore");
+    let gitignore_in_parent = base_path.parent().and_then(|p| {
+        let parent_gitignore = p.join(".gitignore");
+        if parent_gitignore.exists() {
+            Some(parent_gitignore)
+        } else {
+            None
+        }
+    });
+
+    let gitignore_path = if gitignore_in_project.exists() {
+        Some(gitignore_in_project)
+    } else {
+        gitignore_in_parent
+    };
+
+    if let Some(gitignore) = gitignore_path {
+        // 读取现有内容
+        if let Ok(content) = fs::read_to_string(&gitignore) {
+            // 检查是否已经包含 .ksmm/
+            if content.lines().any(|line| line.trim() == ".ksmm/") {
+                println!("{}", format!("  [!] .gitignore 已包含 .ksmm/，跳过添加").dimmed());
+            } else {
+                // 追加 .ksmm/ 到 .gitignore
+                let mut new_content = content;
+                if !new_content.ends_with('\n') {
+                    new_content.push('\n');
+                }
+                new_content.push_str(".ksmm/\n");
+                
+                if let Ok(_) = fs::write(&gitignore, new_content) {
+                    println!("{} 更新 .gitignore (添加 .ksmm/)", "[+]".green());
+                } else {
+                    println!("{}", format!("  [!] 无法写入 .gitignore").dimmed());
+                }
+            }
+        }
+    }
+}
+
 pub fn execute() {
     println!("{} {}", "🚀", "初始化 KernelSU 模块...".cyan());
 
@@ -427,6 +494,12 @@ pub fn execute() {
     // 创建 .ksmm 配置目录
     create_ksmm_config(base_path);
 
+    // 更新 .gitignore 文件
+    update_gitignore(base_path);
+
+    // 创建 GitHub Actions CI 工作流
+    create_github_workflows(base_path);
+
     // 创建 module.prop
     create_module_prop(base_path, &id, &name, &version, version_code_int, &author, &description, &update_json);
 
@@ -477,7 +550,6 @@ pub fn execute() {
     println!("  1. 编辑 {} 目录，添加你要修改的系统文件", "system/".green());
     println!("  2. 根据需要修改 {} 安装脚本", "customize.sh".green());
     println!("  3. 运行 {} 构建模块", "'ksmm build'".green());
-    println!("  4. 运行 {} 安装到设备测试", "'ksmm install <模块文件>'".green());
     println!();
     println!("{} 项目初始化成功!", "🎉");
 }

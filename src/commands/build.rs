@@ -439,7 +439,7 @@ fn check_and_sign_release(module_info: &HashMap<String, String>) -> Result<(), B
     if has_pem_files {
         println!("{} 检测到PEM密钥文件", "🔑");
     } else {
-        println!("{} 未检测到PEM密钥文件", "ℹ️");
+        println!("{} 未检测到PEM密钥文件，跳过签名", "ℹ️");
         return Ok(());
     }
 
