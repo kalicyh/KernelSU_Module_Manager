@@ -1,6 +1,9 @@
 # KernelSU_Module_Manager
 开发与管理 KernelSU 模块
 
+> 目前签名仅支持MacOS M系列芯片，即 Apple Silicon（M1、M2 等）
+> 等待签名[zakosign](https://github.com/Lama3L9R/zakosign)支持
+
 ## 命令
 
 ```bash

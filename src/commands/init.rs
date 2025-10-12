@@ -245,6 +245,85 @@ fn create_webui(base_path: &Path) {
     }
 }
 
+fn create_ksmm_config(base_path: &Path) {
+    let ksmm_path = base_path.join(".ksmm");
+    if ksmm_path.exists() {
+        println!("{}", format!("  [!] .ksmm 目录已存在，跳过创建").dimmed());
+    } else {
+        fs::create_dir_all(&ksmm_path).expect("无法创建 .ksmm 目录");
+        println!("{} 创建 .ksmm 目录", "[+]".green());
+    }
+
+    // 创建构建配置文件
+    let build_conf_path = ksmm_path.join("build.conf");
+    if build_conf_path.exists() {
+        println!("{}", format!("  [!] .ksmm/build.conf 文件已存在，跳过创建").dimmed());
+    } else {
+        let build_conf_content = r#"# KernelSU 模块构建配置文件
+# 控制哪些文件被复制到构建目录
+#
+# 语法说明:
+#   - 普通行: 忽略这些文件/目录 (支持通配符)
+#   - ! 开头的行: 强制包括这些文件/目录 (即使在忽略列表中)
+#   - # 开头的行: 注释
+#   - 空行: 被忽略
+#
+# 示例:
+#   *.log      # 忽略所有 .log 文件
+#   build/     # 忽略 build 目录
+#   !system/   # 强制包括 system 目录
+
+# 版本控制文件
+.git/
+.gitignore
+.github/
+
+# 构建产物
+build/
+target/
+*.zip
+*.tar.gz
+
+# 临时文件
+*.tmp
+*.bak
+*~
+
+# 日志文件
+*.log
+
+# IDE 和编辑器文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 文档文件
+README.md
+CHANGELOG.md
+
+# 强制包括的核心模块文件
+!module.prop
+!system/
+!webroot/
+
+# 强制包括脚本文件
+!*.sh
+!action.sh
+
+# 强制包括配置文件
+!system.prop
+!sepolicy.rule
+"#;
+        fs::write(&build_conf_path, build_conf_content).expect("无法写入 .ksmm/build.conf");
+        println!("{} 创建 .ksmm/build.conf", "[+]".green());
+    }
+}
+
 pub fn execute() {
     println!("{} {}", "🚀", "初始化 KernelSU 模块...".cyan());
 
@@ -344,6 +423,9 @@ pub fn execute() {
 
     // 创建 system 目录
     create_system_directory(base_path);
+
+    // 创建 .ksmm 配置目录
+    create_ksmm_config(base_path);
 
     // 创建 module.prop
     create_module_prop(base_path, &id, &name, &version, version_code_int, &author, &description, &update_json);
