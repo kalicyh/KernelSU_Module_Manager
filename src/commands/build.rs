@@ -7,7 +7,6 @@ use std::process::Command;
 use regex::Regex;
 use chrono::{Datelike, Timelike, Utc};
 use std::io;
-use std::env;
 use zip::write::FileOptions;
 
 fn refresh_version_code(module_prop_path: &Path) -> Result<i32, Box<dyn std::error::Error>> {
