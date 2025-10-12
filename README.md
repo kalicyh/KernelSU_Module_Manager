@@ -5,9 +5,10 @@
 
 ```bash
 ksmm help      # 显示帮助信息
-ksmm list       # 列出已安装模块
-ksmm install x  # 安装模块 x
-ksmm remove y   # 移除模块 y
+ksmm init      # 初始化模块
+ksmm build     # 构建模块
+ksmm sign <file> # 签名文件
+ksmm key new <name> # 创建新密钥
 ksmm version   # 显示版本信息
 ```
 ## 模块结构
@@ -47,14 +48,12 @@ cargo run <command>    # 运行项目并传递命令
 ./target/debug/ksmm help      # 显示帮助信息
 ```
 
-## 预期使用的依赖
+## 依赖
 
 | 功能                | 推荐库                                               |
 | ----------------- | ------------------------------------------------- |
 | 命令行参数解析           | [clap](https://crates.io/crates/clap)             |
-| 配置文件解析（YAML/TOML） | [serde + toml/yaml](https://serde.rs/)            |
-| 日志输出              | [tracing](https://crates.io/crates/tracing)       |
 | 彩色输出              | [owo-colors](https://crates.io/crates/owo-colors) |
-| 进度条               | [indicatif](https://crates.io/crates/indicatif)   |
+| 日期时间处理            | [chrono](https://crates.io/crates/chrono)         |
+| 正则表达式             | [regex](https://crates.io/crates/regex)           |
 | 命令行交互             | [dialoguer](https://crates.io/crates/dialoguer)   |
-| 异步 CLI            | [tokio](https://crates.io/crates/tokio)           |

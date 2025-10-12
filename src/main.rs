@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, builder::Styles};
+use clap::{Parser, Subcommand, builder::Styles, CommandFactory};
 use std::env;
 
 mod commands;
@@ -11,7 +11,11 @@ mod commands;
 )]
 struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
+
+    /// Show version information
+    #[arg(short = 'V', long)]
+    version: bool,
 }
 
 fn get_styles() -> Styles {
@@ -25,20 +29,8 @@ fn get_styles() -> Styles {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// 列出已安装模块
-    List,
-    /// 安装模块
-    Install {
-        /// 模块名称
-        module: String,
-    },
     /// 初始化模块
     Init,
-    /// 移除模块
-    Remove {
-        /// 模块名称
-        module: String,
-    },
     /// 构建模块
     Build,
     /// 签名文件
@@ -62,14 +54,22 @@ fn main() {
 
     let cli = Cli::parse();
 
+    // Handle version flag
+    if cli.version {
+        commands::version::execute();
+        return;
+    }
+
+    // Handle commands
     match cli.command {
-        Commands::Build => commands::build::execute(),
-        Commands::Init => commands::init::execute(),
-        Commands::Install { module } => commands::install::execute(module),
-        Commands::List => commands::list::execute(),
-        Commands::Remove { module } => commands::remove::execute(module),
-        Commands::Sign { file } => commands::sign::execute_sign_file(file),
-        Commands::Key { key_command } => commands::sign::execute_key_command(key_command),
-        Commands::Version => commands::version::execute(),
+        Some(Commands::Build) => commands::build::execute(),
+        Some(Commands::Init) => commands::init::execute(),
+        Some(Commands::Sign { file }) => commands::sign::execute_sign_file(file),
+        Some(Commands::Key { key_command }) => commands::sign::execute_key_command(key_command),
+        Some(Commands::Version) => commands::version::execute(),
+        None => {
+            // No command provided, show help
+            let _ = Cli::command().print_help();
+        }
     }
 }
