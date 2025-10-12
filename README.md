@@ -4,6 +4,15 @@
 > 目前签名仅支持MacOS M系列芯片，即 Apple Silicon（M1、M2 等）
 > 等待签名[zakosign](https://github.com/Lama3L9R/zakosign)支持
 
+## 安装
+
+```bash
+# 使用cargo安装
+cargo install ksmm
+# 或从release下载预编译的二进制文件
+./ksmm help
+```
+
 ## 命令
 
 ```bash
