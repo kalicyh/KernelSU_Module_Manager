@@ -354,6 +354,9 @@ on:
     tags:
       - "v*"    # 当推送 tag 时触发，比如 v1.0.0
 
+permissions:
+  contents: write
+
 jobs:
   release:
     name: Build and Release
