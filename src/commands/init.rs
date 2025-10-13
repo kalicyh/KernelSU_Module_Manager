@@ -325,28 +325,79 @@ CHANGELOG.md
 }
 
 fn create_github_workflows(base_path: &Path) {
-    let workflows_path = base_path.join(".github/workflows");
-    
-    if workflows_path.exists() {
-        println!("{}", format!("  [!] .github/workflows 目录已存在，跳过创建").dimmed());
-        return;
-    }
+        let workflows_path = base_path.join(".github/workflows");
 
-    match fs::create_dir_all(&workflows_path) {
-        Ok(_) => {
-            println!("{} 创建 .github/workflows 目录", "[+]".green());
+        // 如果目录不存在则创建；如果存在则继续（不要直接返回）
+        if !workflows_path.exists() {
+                match fs::create_dir_all(&workflows_path) {
+                        Ok(_) => println!("{} 创建 .github/workflows 目录", "[+]".green()),
+                        Err(e) => {
+                                println!("{} 创建 .github/workflows 目录失败: {}", "[-]".red(), e);
+                                return;
+                        }
+                }
+        } else {
+                println!("{}", format!("  [!] .github/workflows 目录已存在，继续检查文件").dimmed());
         }
-        Err(e) => {
-            println!("{} 创建 .github/workflows 目录失败: {}", "[-]".red(), e);
-            return;
+
+        // 始终尝试创建 ci.yml（如果文件已存在则跳过）
+        let ci_yml_path = workflows_path.join("ci.yml");
+        if ci_yml_path.exists() {
+                println!("{}", format!("  [!] .github/workflows/ci.yml 已存在，跳过创建").dimmed());
+                return;
         }
-    }
 
-    let ci_yml_path = workflows_path.join("ci.yml");
-    let ci_yml_content = "name: CI\n\non:\n  push:\n    tags:\n      - 'v*'\n\njobs:\n  build:\n    runs-on: macos-latest\n\n    steps:\n    - name: Checkout code\n      uses: actions/checkout@v4\n\n    - name: Test\n      run: echo 'Hello World'\n";
+        let ci_yml_content = r#"name: Release with KSMM
 
-    fs::write(&ci_yml_path, ci_yml_content).expect("无法写入 .github/workflows/ci.yml");
-    println!("{} 创建 .github/workflows/ci.yml", "[+]".green());
+on:
+  push:
+    tags:
+      - "v*"    # 当推送 tag 时触发，比如 v1.0.0
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "🧩 Checkout repository"
+        uses: actions/checkout@v4
+
+      - name: "🦀 Install Rust"
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: "📦 Install ksmm"
+        run: cargo install ksmm
+
+      - name: "🏷️ Get tag name"
+        id: get_tag
+        run: |
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+            echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+            echo "✅ Detected tag: $TAG_NAME"
+
+      - name: ⚙️ Run ksmm build
+        run: |
+              ksmm build
+
+      - name: "📁 Show release contents"
+        run: |
+            echo "🪣 Build output:"
+            ls -R .ksmm/release || echo "❌ .ksmm/release not found"
+
+      - name: "🚀 Create GitHub Release"
+        uses: softprops/action-gh-release@v2
+        with:
+            tag_name: ${{ env.TAG_NAME }}
+            name: "Release ${{ env.TAG_NAME }}"
+            files: |
+                .ksmm/release/**
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+"#;
+
+        fs::write(&ci_yml_path, ci_yml_content).expect("无法写入 .github/workflows/ci.yml");
+        println!("{} 创建 .github/workflows/ci.yml", "[+]".green());
 }
 
 fn update_gitignore(base_path: &Path) {
