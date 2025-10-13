@@ -1,6 +1,6 @@
 [package]
 name = "ksmm"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2024"
 authors = ["kalicyh <kalicyh@qq.com>"]
 license = "MIT"
