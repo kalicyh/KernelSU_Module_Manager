@@ -77,7 +77,7 @@ fn get_git_commit_hash() -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
-fn generate_update_json(module_info: &HashMap<String, String>, short_commit: &str, ksmm_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn generate_update_json(module_info: &HashMap<String, String>, short_commit: &str, release_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let id = module_info.get("id").map(|s| s.as_str()).unwrap_or("unknown");
     let version = module_info.get("version").map(|s| s.as_str()).unwrap_or("0.1.0");
     let version_code = module_info.get("versionCode").map(|s| s.as_str()).unwrap_or("1");
@@ -96,7 +96,7 @@ fn generate_update_json(module_info: &HashMap<String, String>, short_commit: &st
         username, repo, id, version, short_commit, version_code, username, repo, id, version_code
     );
 
-    let update_json_path = ksmm_dir.join("update.json");
+    let update_json_path = release_dir.join("update.json");
     fs::write(&update_json_path, update_json)?;
 
     Ok(())
@@ -349,9 +349,7 @@ fn package_build_to_zip(build_dir: &Path, module_info: &HashMap<String, String>)
     let _version = module_info.get("version").unwrap_or(&"0.1.0".to_string()).clone();
     let version_code = module_info.get("versionCode").unwrap_or(&"1".to_string()).clone();
 
-    // 创建release目录
     let release_dir = Path::new(".ksmm/release");
-    fs::create_dir_all(release_dir)?;
 
     // 生成ZIP文件名
     let zip_filename = format!("{}-{}.zip", id, version_code);
@@ -534,8 +532,15 @@ pub fn execute() {
         return;
     }
 
+    // 创建 release 目录
+    let release_dir = Path::new(".ksmm/release");
+    if let Err(e) = fs::create_dir_all(release_dir) {
+        println!("{} 创建 release 目录失败: {}", "❌", e);
+        return;
+    }
+
     // 生成 update.json
-    if let Err(e) = generate_update_json(&module_info, &short_commit, &ksmm_dir) {
+    if let Err(e) = generate_update_json(&module_info, &short_commit, &release_dir) {
         println!("{} 生成 update.json 失败: {}", "❌", e);
         return;
     }
@@ -547,7 +552,7 @@ pub fn execute() {
         return;
     }
 
-    println!("{} 创建 .ksmm/update.json", "[+]".green());
+    println!("{} 创建 .ksmm/release/update.json", "[+]".green());
     println!("{} 模块构建完成!", "✅");
 
     // 打包构建产物为ZIP

@@ -350,42 +350,55 @@ fn create_github_workflows(base_path: &Path) {
 }
 
 fn update_gitignore(base_path: &Path) {
-    // 查找 .gitignore 文件，先在项目目录，然后在父目录
-    let gitignore_in_project = base_path.join(".gitignore");
-    let gitignore_in_parent = base_path.parent().and_then(|p| {
-        let parent_gitignore = p.join(".gitignore");
-        if parent_gitignore.exists() {
-            Some(parent_gitignore)
-        } else {
-            None
-        }
-    });
+    // 只在项目目录（base_path）内查找或创建 .gitignore
+    let gitignore_path = base_path.join(".gitignore");
 
-    let gitignore_path = if gitignore_in_project.exists() {
-        Some(gitignore_in_project)
+    // 读取或创建 .gitignore
+    let content = if gitignore_path.exists() {
+        match fs::read_to_string(&gitignore_path) {
+            Ok(c) => c,
+            Err(e) => {
+                println!("{}", format!("  [!] 无法读取 .gitignore: {}", e).dimmed());
+                return;
+            }
+        }
     } else {
-        gitignore_in_parent
+        // 如果不存在，创建一个空的内容
+        String::new()
     };
 
-    if let Some(gitignore) = gitignore_path {
-        // 读取现有内容
-        if let Ok(content) = fs::read_to_string(&gitignore) {
-            // 检查是否已经包含 .ksmm/
-            if content.lines().any(|line| line.trim() == ".ksmm/") {
-                println!("{}", format!("  [!] .gitignore 已包含 .ksmm/，跳过添加").dimmed());
-            } else {
-                // 追加 .ksmm/ 到 .gitignore
-                let mut new_content = content;
-                if !new_content.ends_with('\n') {
-                    new_content.push('\n');
-                }
-                new_content.push_str(".ksmm/\n");
-                
-                if let Ok(_) = fs::write(&gitignore, new_content) {
-                    println!("{} 更新 .gitignore (添加 .ksmm/)", "[+]".green());
+    let is_empty = content.is_empty();
+
+    // 检查是否已经包含 .ksmm/
+    let has_ksmm = content.lines().any(|line| line.trim() == ".ksmm/");
+    let has_build_conf = content.lines().any(|line| line.trim() == "!.ksmm/build.conf");
+    
+    if has_ksmm && has_build_conf {
+        println!("{}", format!("  [!] .gitignore 已包含 .ksmm/ 和 !.ksmm/build.conf，跳过添加").dimmed());
+    } else {
+        // 追加内容到 .gitignore
+        let mut new_content = content;
+        if !is_empty && !new_content.ends_with('\n') {
+            new_content.push('\n');
+        }
+        
+        if !has_ksmm {
+            new_content.push_str(".ksmm/\n");
+        }
+        if !has_build_conf {
+            new_content.push_str("!.ksmm/build.conf\n");
+        }
+        
+        match fs::write(&gitignore_path, new_content) {
+            Ok(_) => {
+                if is_empty {
+                    println!("{} 创建 .gitignore", "[+]".green());
                 } else {
-                    println!("{}", format!("  [!] 无法写入 .gitignore").dimmed());
+                    println!("{} 更新 .gitignore", "[+]".green());
                 }
+            }
+            Err(e) => {
+                println!("{}", format!("  [!] 无法写入 .gitignore: {}", e).dimmed());
             }
         }
     }
@@ -487,6 +500,14 @@ pub fn execute() {
 
     // 自动生成描述
     let description = format!("一个用ksmm创建的{}模块", name);
+
+    // 确保项目目录存在
+    if !base_path.exists() {
+        if let Err(e) = fs::create_dir_all(base_path) {
+            println!("{} 创建项目目录失败: {}", "❌", e);
+            return;
+        }
+    }
 
     // 创建 system 目录
     create_system_directory(base_path);
