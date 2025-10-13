@@ -1,6 +1,8 @@
 # KernelSU_Module_Manager
 开发与管理 KernelSU 模块
 
+支持模块的创建、构建和签名，并且利用github actions实现自动化构建与发布
+
 > 目前签名仅支持MacOS M系列芯片，即 Apple Silicon（M1、M2 等）
 > 等待签名[zakosign](https://github.com/Lama3L9R/zakosign)支持
 

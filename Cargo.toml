@@ -15,5 +15,5 @@ clap = { version = "4.5", features = ["derive"] }
 owo-colors = "4.2"
 chrono = "0.4"
 regex = "1.12"
-dialoguer = "0.11"
-zip = "0.6"
+dialoguer = "0.12"
+zip = "0.6.6"
