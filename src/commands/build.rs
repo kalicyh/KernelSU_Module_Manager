@@ -202,17 +202,17 @@ fn copy_files_to_build(build_dir: &Path) -> Result<(), Box<dyn std::error::Error
         match op.operation_type {
             OperationType::CreateDir => {
                 fs::create_dir_all(&op.dst)?;
-                println!("{} 创建目录: {}", "[DEBUG]".cyan(), op.dst.display());
+                println!("{} 创建目录: {}", "[+]".cyan(), op.dst.display());
             }
             OperationType::CopyFile => {
                 fs::copy(&op.src, &op.dst)?;
-                println!("{} 复制文件: {} -> {}", "[DEBUG]".green(), op.src.display(), op.dst.display());
+                println!("{} 复制文件: {} -> {}", "[+]".green(), op.src.display(), op.dst.display());
             }
             OperationType::Include(pattern) => {
-                println!("{} 文件 '{}' 匹配包括模式 '{}', 包括", "[DEBUG]".yellow(), op.src.display(), pattern);
+                println!("{} 文件 '{}' 匹配包括模式 '{}', 包括", "[+]".yellow(), op.src.display(), pattern);
             }
             OperationType::Ignore(pattern) => {
-                println!("{} 文件 '{}' 匹配忽略模式 '{}', 忽略", "[DEBUG]".red(), op.src.display(), pattern);
+                println!("{} 文件 '{}' 匹配忽略模式 '{}', 忽略", "[-]".red(), op.src.display(), pattern);
             }
         }
     }
@@ -359,12 +359,12 @@ fn package_build_to_zip(build_dir: &Path, module_info: &HashMap<String, String>)
     let zip_file = fs::File::create(&zip_path)?;
     let mut zip = zip::ZipWriter::new(zip_file);
 
-    let options = FileOptions::default()
+    let options: FileOptions<'_, ()> = FileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .unix_permissions(0o755);
 
     // 递归添加文件到ZIP
-    add_dir_to_zip(&mut zip, build_dir, build_dir, options)?;
+    add_dir_to_zip(&mut zip, build_dir, build_dir, &options)?;
 
     zip.finish()?;
     println!("{} 创建 .ksmm/release/{}", "[+]".green(), zip_filename);
@@ -372,11 +372,11 @@ fn package_build_to_zip(build_dir: &Path, module_info: &HashMap<String, String>)
     Ok(())
 }
 
-fn add_dir_to_zip<W: std::io::Write + std::io::Seek>(
+fn add_dir_to_zip<W: std::io::Write + std::io::Seek, T: zip::write::FileOptionExtension + Clone>(
     zip: &mut zip::ZipWriter<W>,
     base_path: &Path,
     current_path: &Path,
-    options: FileOptions,
+    options: &FileOptions<'_, T>,
 ) -> zip::result::ZipResult<()> {
     if current_path.is_dir() {
         for entry in fs::read_dir(current_path)? {
@@ -385,10 +385,10 @@ fn add_dir_to_zip<W: std::io::Write + std::io::Seek>(
             let name = path.strip_prefix(base_path).unwrap().to_string_lossy();
 
             if path.is_dir() {
-                zip.add_directory(name, options)?;
+                zip.add_directory(name, (*options).clone())?;
                 add_dir_to_zip(zip, base_path, &path, options)?;
             } else {
-                zip.start_file(name, options)?;
+                zip.start_file(name, (*options).clone())?;
                 let mut f = fs::File::open(&path)?;
                 std::io::copy(&mut f, zip)?;
             }
