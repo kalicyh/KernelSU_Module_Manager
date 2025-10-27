@@ -88,12 +88,12 @@ fn generate_update_json(module_info: &HashMap<String, String>, short_commit: &st
     // 生成 update.json
     let update_json = format!(
         r#"{{
-  "changelog": "https://raw.githubusercontent.com/{}/{}/main/{}/CHANGELOG.md",
+  "changelog": "https://raw.githubusercontent.com/{}/{}/main/CHANGELOG.md",
   "version": "v{}-{}",
   "versionCode": {},
   "zipUrl": "https://github.com/{}/{}/releases/latest/download/{}-{}.zip"
 }}"#,
-        username, repo, id, version, short_commit, version_code, username, repo, id, version_code
+        username, repo, version, short_commit, version_code, username, repo, id, version_code
     );
 
     let update_json_path = release_dir.join("update.json");
